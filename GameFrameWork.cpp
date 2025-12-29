@@ -79,7 +79,15 @@ GameFramework::~GameFramework() {
     CleanupDoubleBuffering();
 
     // 폰트 Release
-    if (hFont) { DeleteObject(hFont); hFont = nullptr; }
+    if (hFont) { 
+        DeleteObject(hFont); 
+        hFont = nullptr; 
+    }
+
+    if (hFpsFont) {
+        DeleteObject(hFpsFont);
+        hFpsFont = nullptr;
+    }
 
     delete camera;
     delete player;
@@ -534,6 +542,15 @@ void GameFramework::Update(float frameTime) {
 
     // 디버그 키 업데이트
     HandleDebugKeys();
+
+    // FPS 표시 반영
+    fpsTimeAcc += frameTime;
+    fpsFrameCount++;
+    if (fpsTimeAcc >= 0.25f) {
+        fps = (fpsTimeAcc > 0.0f) ? (fpsFrameCount / fpsTimeAcc) : 0.0f;
+        fpsFrameCount = 0;
+        fpsTimeAcc = 0.0f;
+    }
 }
 
 void GameFramework::HandleDebugKeys() {
@@ -659,6 +676,40 @@ void GameFramework::DrawGameTime(HDC hdc) {
 
     SelectObject(m_hdcBackBuffer, hOldFont);
 }
+
+void GameFramework::DrawFPS(HDC hdc, const RECT& clientRect) {
+    if (!hFpsFont) {
+        // 작고 읽기 쉬운 폰트 (원하면 다른 폰트로 변경 가능)
+        hFpsFont = CreateFont(
+            -14, 0, 0, 0,
+            FW_NORMAL,
+            FALSE, FALSE, FALSE,
+            ANSI_CHARSET,
+            OUT_TT_PRECIS,
+            CLIP_DEFAULT_PRECIS,
+            ANTIALIASED_QUALITY,
+            DEFAULT_PITCH | FF_DONTCARE,
+            L"Consolas"
+        );
+    }
+
+    HFONT oldFont = (HFONT)SelectObject(hdc, hFpsFont);
+    SetBkMode(hdc, TRANSPARENT);
+    SetTextColor(hdc, RGB(0, 255, 0));
+
+    wchar_t buf[32];
+    swprintf_s(buf, L"FPS: %.0f", fps);
+
+    SIZE sz{};
+    GetTextExtentPoint32W(hdc, buf, lstrlenW(buf), &sz);
+
+    int x = clientRect.right - sz.cx - 10;
+    int y = clientRect.bottom - sz.cy - 10;
+    TextOutW(hdc, x, y, buf, lstrlenW(buf));
+
+    SelectObject(hdc, oldFont);
+}
+
 
 void GameFramework::DrawPauseMenu(HDC hdc) {
     if (!hFont) {
@@ -809,6 +860,9 @@ void GameFramework::Draw(HDC hdc) {
     else {
         cursorImage.Draw(m_hdcBackBuffer, cursorPos.x - cursorWidth / 2, cursorPos.y - cursorHeight / 2);
     }
+
+    // FPS UI Draw
+    DrawFPS(m_hdcBackBuffer, clientRect);
 
     BitBlt(hdc, 0, 0, clientRect.right, clientRect.bottom, m_hdcBackBuffer, 0, 0, SRCCOPY);
 

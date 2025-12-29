@@ -2,17 +2,22 @@
 #include "Client.h"
 #include "GameFramework.h"
 
+#include <mmsystem.h>
+#pragma comment(lib, "winmm.lib")
+
 #define CLIENT_WIDTH    800
 #define CLIENT_HEIGHT   600
 
-#define GAME_TIMER      1    
-#define GAME_FRAME_RATE 16
+// Target max FPS (cap)
+static constexpr double kTargetFps = 60.0;
+static constexpr double kTargetFrameSec = 1.0 / kTargetFps;
 
 HINSTANCE hInst;
 LPCTSTR lpszClass = L"Winapi Term Project";
 LPCTSTR lpszWindowName = L"Winapi Term Project";
 
 static GameFramework gameframework;
+static HWND g_hWnd = nullptr;
 
 ATOM MyRegisterClass(HINSTANCE hInstance);
 BOOL InitInstance(HINSTANCE, int);
@@ -30,11 +35,14 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
         return FALSE;
     }
 
-    MSG msg;
-    DWORD frameStartTime{};
-    DWORD frameEndTime{};
-    const DWORD frameDuration = 1000 / 60;
-    float frameTime{};
+    timeBeginPeriod(1);
+
+    // 고해상도 타이머로 계산
+    MSG msg{};
+    LARGE_INTEGER freq{};
+    LARGE_INTEGER lastFrameStart{};
+    QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&lastFrameStart);
 
     while (true)
     {
@@ -46,22 +54,37 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
         }
         else
         {
-            frameStartTime = GetTickCount64();  // 프레임 시작 시간
+            // 프레임 시작 시간
+            LARGE_INTEGER frameStart{};
+            QueryPerformanceCounter(&frameStart);
 
-            // 게임 프레임 업데이트
-            frameTime = 1.0f / 60.0f;  // 약 60FPS로 가정
-            gameframework.Update(frameTime);
-            InvalidateRect(GetActiveWindow(), NULL, FALSE);
+            // 실제 Delta Time 계산
+            double dtSec = double(frameStart.QuadPart - lastFrameStart.QuadPart) / double(freq.QuadPart);
+            lastFrameStart = frameStart;
 
-            // 프레임이 너무 빨리 그려지는 경우 대기
-            frameEndTime = GetTickCount64();
-            DWORD frameElapsedTime = frameEndTime - frameStartTime;
-            if (frameElapsedTime < GAME_FRAME_RATE)
+            // dt 폭주 방지
+            if (dtSec > 0.1) dtSec = 0.1;
+
+            // 화면 업데이트 및 갱신
+            gameframework.Update(static_cast<float>(dtSec));
+            InvalidateRect(g_hWnd, NULL, FALSE);
+
+            // 60FPS 캡 설정
+            LARGE_INTEGER afterWork{};
+            QueryPerformanceCounter(&afterWork);
+
+            double workSec = double(afterWork.QuadPart - frameStart.QuadPart) / double(freq.QuadPart);
+            double remainSec = kTargetFrameSec - workSec;
+
+            if (remainSec > 0.0)
             {
-                Sleep(GAME_FRAME_RATE - frameElapsedTime);
+                DWORD sleepMs = static_cast<DWORD>(remainSec * 1000.0);
+                if (sleepMs > 0) Sleep(sleepMs);
             }
         }
     }
+
+    timeEndPeriod(1);
 
     gameframework.Clear();
 
@@ -111,6 +134,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
         return FALSE;
     }
 
+    g_hWnd = hWnd;
     ShowWindow(hWnd, nCmdShow);
     UpdateWindow(hWnd);
 
@@ -130,7 +154,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     {
     case WM_CREATE:
         gameframework.Create(hWnd);
-        SetTimer(hWnd, GAME_TIMER, GAME_FRAME_RATE, NULL);
         break;
 
     case WM_PAINT:
@@ -142,10 +165,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     }
     break;
 
-    case WM_TIMER:
-        gameframework.Update(0.016f); // 약 60FPS로 가정 (1초 / 60프레임)
-        InvalidateRect(hWnd, NULL, FALSE);
-        break;
+    //case WM_TIMER:
+    //    break;
 
     case WM_KEYDOWN:
         if (wParam == VK_ESCAPE) {
