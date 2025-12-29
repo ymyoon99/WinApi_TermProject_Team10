@@ -101,10 +101,50 @@ GameFramework::~GameFramework() {
 }
 
 void GameFramework::ResetGame() {
+    // 상태 플래그 초기화
+    isPaused = false;
+    isShowingUpgradePanel = false;
+    showClickImage = false;
+    clickImageTimer = 0.0f;
+
+    // 총/시간/스폰 타이머 초기화
+    currentGun = &revolver;
+    gameTimeSeconds = 0;
+    bossSpawned = false;
+
+    enemySpawnTimer = 0.0f;
+    bigBoomerSpawnTimer = 0.0f;
+    lampreySpawnTimer = 0.0f;
+    yogSpawnTimer = 0.0f;
+
+    // 총알 제거
+    for (Bullet* b : bullets) delete b;
+    bullets.clear();
+
+    // 아이템 제거
+    for (Item* it : items) delete it;
+    items.clear();
+
+    // 적 제거
+    for (Enemy* e : enemies) delete e;
+    enemies.clear();
+
+    // 장애물 제거
+    for (Obstacle* o : obstacles) delete o;
+    obstacles.clear();
+
     // 플레이어 재생성
     delete player;
     player = new Player(mapImage.GetWidth() / 2.0f, mapImage.GetHeight() / 2.0f, 2.0f, 0.2f, this);
     player->SetBounds(mapImage.GetWidth(), mapImage.GetHeight());
+
+    // 카메라 갱신
+    camera->SetBounds(mapImage.GetWidth(), mapImage.GetHeight());
+    camera->Update(player->GetX(), player->GetY());
+
+    // 적/장애물 재생성
+    StartCreateEnemies();
+    CreateObstacles(20);
 }
 
 void GameFramework::SpawnBossYog() {
@@ -353,7 +393,6 @@ void GameFramework::Update(float frameTime) {
     }
 
     this->frameTime = frameTime;  // 프레임 타임 저장
-
     if (isMainMenu) return;
 
     static float timeAccumulator = 0.0f;
@@ -482,6 +521,12 @@ void GameFramework::Update(float frameTime) {
         if (clickImageTimer <= 0.0f) {
             showClickImage = false;
         }
+    }
+
+    // 플레이어 죽음 처리
+    if (player->health <= 0) {
+        ResetGame();
+        return;
     }
 
     // 총 장전 업데이트
