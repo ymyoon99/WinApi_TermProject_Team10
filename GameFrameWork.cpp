@@ -17,9 +17,9 @@ GameFramework::GameFramework()
     isPaused(false),
     isShowingUpgradePanel(false), 
     isMainMenu(true), menuAnimationFrame(0), menuAnimationAccumulator(0.0f), 
-    selectedMenuItem(0)
-    bossSpawned(false) 
-{
+    selectedMenuItem(0),
+    bossSpawned(false) {
+
     Clear();
 
     mapImage.Load(L"./resources/background/background.png");
@@ -107,34 +107,6 @@ void GameFramework::ResetGame() {
     player->SetBounds(mapImage.GetWidth(), mapImage.GetHeight());
 }
 
-void GameFramework::SpawnEnemy() {
-    if (enemies.size() >= 100) {
-        return;
-    }
-
-    float playerX = player->GetX();
-    float playerY = player->GetY();
-    float spawnRadius = 600.0f;
-
-    float angle = (rand() % 360) * 3.14159265358979323846 / 180.0;
-    float spawnX = playerX + spawnRadius * cos(angle);
-    float spawnY = playerY + spawnRadius * sin(angle);
-
-    const wchar_t* enemyImages[] = {
-        L"./resources/enemy/T_Lamprey_0.png",
-        L"./resources/enemy/T_Lamprey_1.png",
-        L"./resources/enemy/T_Lamprey_2.png",
-        L"./resources/enemy/T_Lamprey_3.png",
-        L"./resources/enemy/T_Lamprey_4.png"
-    };
-    int numFrames = sizeof(enemyImages) / sizeof(enemyImages[0]);
-
-    float enemyAnimationSpeed = 2.0f;
-    float enemySpeed = 5.0f;
-
-    enemies.push_back(new Enemy(spawnX, spawnY, enemySpeed, 10, enemyImages, numFrames, enemyAnimationSpeed));
-}
-
 void GameFramework::SpawnBossYog() {
     float playerX = player->GetX();
     float playerY = player->GetY();
@@ -157,68 +129,6 @@ void GameFramework::SpawnBossYogNearPlayer() {
     float spawnY = playerY + spawnRadius * sin(angle);
 
     enemies.push_back(new BossYog(spawnX, spawnY, 5.0f, 1000, 128.0f, 108.0f));
-}
-
-void GameFramework::CreateEnemies() {
-    for (int i = 0; i < 10; ++i) {
-        SpawnEnemy();
-    }
-}
-
-void GameFramework::Update(float frameTime) {
-    gameTime += frameTime;
-
-    if (!bossSpawned && gameTime >= 180.0f) { // 3분 = 180초
-        SpawnBossYog();
-        bossSpawned = true;
-    }
-
-    player->Update(frameTime, obstacles);
-    camera->Update(player->GetX(), player->GetY());
-
-    for (Enemy* enemy : enemies) {
-        enemy->Update(frameTime, player->GetX(), player->GetY(), obstacles);
-    }
-
-    enemySpawnTimer += frameTime;
-    if (enemySpawnTimer >= enemySpawnInterval) {
-        SpawnEnemy();
-        enemySpawnTimer = 0.0f;
-    }
-
-    // 적 제거
-    for (Enemy* enemy : enemies) {
-        delete enemy;
-    }
-    enemies.clear();
-
-    // 아이템 제거
-    for (Item* item : items) {
-        delete item;
-    }
-    items.clear();
-
-    // 장애물 제거
-    for (Obstacle* obstacle : obstacles) {
-        delete obstacle;
-    }
-    obstacles.clear();
-
-    // 시간 초기화
-    gameTimeSeconds = 0;
-
-    // 기타 필요한 초기화 작업
-    enemySpawnTimer = 0.0f;
-    bigBoomerSpawnTimer = 0.0f;
-    lampreySpawnTimer = 0.0f;
-    yogSpawnTimer = 0.0f;
-
-    // 카메라 초기화
-    camera->SetBounds(mapImage.GetWidth(), mapImage.GetHeight());
-
-    // 적 및 장애물 재생성
-    StartCreateEnemies();
-    //CreateObstacles(20);
 }
 
 void GameFramework::PlayGameSound(LPCWSTR soundFile) {
@@ -435,8 +345,6 @@ void GameFramework::SpawnItem(float x, float y) {
 
 void GameFramework::Update(float frameTime) {
 
-    if (isMainMenu) {}
-   
     if (isPaused) return;
 
     if (isShowingUpgradePanel) {
@@ -445,6 +353,8 @@ void GameFramework::Update(float frameTime) {
     }
 
     this->frameTime = frameTime;  // 프레임 타임 저장
+
+    if (isMainMenu) return;
 
     static float timeAccumulator = 0.0f;
     timeAccumulator += frameTime;
@@ -636,7 +546,6 @@ void GameFramework::HandleDebugKeys() {
     }
 }
 
-
 void GameFramework::CreateObstacles(int numObstacles) {
     int mapWidth = mapImage.GetWidth();
     int mapHeight = mapImage.GetHeight();
@@ -779,17 +688,6 @@ void GameFramework::DrawUpgradePanel(HDC hdc) {
     SelectObject(m_hdcBackBuffer, hOldFont);
 }
 
-void GameFramework::CreateObstacles(int numObstacles) {
-    int mapWidth = mapImage.GetWidth();
-    int mapHeight = mapImage.GetHeight();
-
-    for (int i = 0; i < numObstacles; ++i) {
-        float x = static_cast<float>(rand() % mapWidth);
-        float y = static_cast<float>(rand() % mapHeight);
-        obstacles.push_back(new Obstacle(x, y));
-    }
-}
-
 void GameFramework::Draw(HDC hdc) {
     if (!m_hdcBackBuffer) {
         InitializeDoubleBuffering(hdc);
@@ -880,82 +778,78 @@ void GameFramework::HandleUpgradeInput() {
 }
 
 void GameFramework::OnKeyBoardProcessing(UINT iMessage, WPARAM wParam, LPARAM lParam) {
-    switch (iMessage) {
-    case WM_KEYDOWN:
-        if (wParam == 'Q') {
+    // 1) 일단 KEYDOWN/KEYUP만 처리
+    if (iMessage != WM_KEYDOWN && iMessage != WM_KEYUP)
+        return;
+
+    // 2) Pause 상태면 Pause 메뉴 입력만
+    if (isPaused) {
+        if (iMessage == WM_KEYDOWN) PauseKeyDown(wParam);
+        return;
+    }
+
+    // 3) MainMenu 상태면 메뉴 입력만 (여기가 ↑↓ 처리 핵심)
+    if (isMainMenu) {
+        if (iMessage == WM_KEYDOWN) HandleMenuInput(wParam);
+        return;
+    }
+
+    // 4) 업그레이드 패널 상태면 업그레이드 입력만 (원하면 유지)
+    if (isShowingUpgradePanel) {
+        if (iMessage == WM_KEYDOWN) {
+            if (wParam == VK_LEFT)  selectedUpgradePanel = 0;
+            if (wParam == VK_RIGHT) selectedUpgradePanel = 1;
+
+            if (wParam == VK_RETURN) {
+                switch (upgradeOptions[selectedUpgradePanel]) {
+                case MaxHp:
+                    player->maxHealth += 1;
+                    player->health += 1;
+                    break;
+                case MaxAmmo:
+                    currentGun->maxAmmo += 1;
+                    break;
+                case AddSpeed:
+                    player->speed += 0.3f;
+                    break;
+                case UpgradeGun:
+                    if (currentGun == &revolver) currentGun = &headshotGun;
+                    else if (currentGun == &headshotGun) currentGun = &clusterGun;
+                    else currentGun = &dualShotgun;
+                    break;
+                }
+                HideUpgradePanel();
+            }
+        }
+        return;
+    }
+
+    // 5) 인게임 입력 처리
+    if (iMessage == WM_KEYDOWN) {
+        switch (wParam) {
+        case 'Q':
             SendMessage(m_hWnd, WM_DESTROY, 0, 0);
             return;
-        }
-        switch (wParam) {
-        case 'A':
-        case 'a':
-            player->moveLeft = true;
-            break;
-        case 'D':
-        case 'd':
-            player->moveRight = true;
-            break;
-        case 'W':
-        case 'w':
-            player->moveUp = true;
-            break;
-        case 'S':
-        case 's':
-            player->moveDown = true;
-            break;
-        case '1':
-            currentGun = &revolver;
-            break;
-        case '2':
-            currentGun = &headshotGun;
-            break;
-        case '3':
-            currentGun = &clusterGun;
-            break;
-        case '4':
-            currentGun = &dualShotgun;
-            break;
-        case VK_F9:
-            SpawnBossYogNearPlayer();
-            break;
-        }
-        break;
+        case 'A': case 'a': player->moveLeft = true;  break;
+        case 'D': case 'd': player->moveRight = true; break;
+        case 'W': case 'w': player->moveUp = true;    break;
+        case 'S': case 's': player->moveDown = true;  break;
 
-    if (GetAsyncKeyState(VK_LEFT) & 0x8000) {
-        selectedUpgradePanel = 0;
-    }
-    if (GetAsyncKeyState(VK_RIGHT) & 0x8000) {
-        selectedUpgradePanel = 1;
-    }
-    if (GetAsyncKeyState(VK_RETURN) & 0x8000) {
-        // 업그레이드 항목 적용
-        switch (upgradeOptions[selectedUpgradePanel]) {
-        case MaxHp:
-            player->maxHealth += 1;
-            player->health += 1;
-            break;
-        case MaxAmmo:
-            currentGun->maxAmmo += 1;
-            break;
-        case AddSpeed:
-            player->speed += 0.3f;
-            break;
-        case UpgradeGun:
-            if (currentGun == &revolver) {
-                currentGun = &headshotGun;
-            }
-            else if (currentGun == &headshotGun) {
-                currentGun = &clusterGun;
-            }
-            else if (currentGun == &clusterGun) {
-                currentGun = &dualShotgun;
-            }
-            else {
-                currentGun = &dualShotgun;
-            }
-            break;
+        case '1': currentGun = &revolver;   break;
+        case '2': currentGun = &headshotGun; break;
+        case '3': currentGun = &clusterGun;  break;
+        case '4': currentGun = &dualShotgun; break;
+
+        case VK_F9: SpawnBossYogNearPlayer(); break;
         }
-        HideUpgradePanel();
+    }
+    else { // WM_KEYUP
+        switch (wParam) {
+        case 'A': case 'a': player->moveLeft = false;  break;
+        case 'D': case 'd': player->moveRight = false; break;
+        case 'W': case 'w': player->moveUp = false;    break;
+        case 'S': case 's': player->moveDown = false;  break;
+        }
     }
 }
 
@@ -996,119 +890,35 @@ void GameFramework::OnKeyUp(WPARAM wParam) {
     // 필요한 경우 키 업 이벤트 처리
 }
 
-void GameFramework::OnKeyBoardProcessing(UINT iMessage, WPARAM wParam, LPARAM lParam) {
-    if (isPaused) {
-        switch (iMessage) {
-        case WM_KEYDOWN:
-            PauseKeyDown(wParam);
-            break;
-        case WM_KEYUP:
-            OnKeyUp(wParam);
-            break;
-        }
-    }
-    else if (isMainMenu) {
-        switch (iMessage) {
-        case WM_KEYDOWN:
-            HandleMenuInput(wParam);
-            break;
-        case WM_KEYUP:
-            OnKeyUp(wParam);
-            break;
-        }
-    }
-    else {
-        switch (iMessage) {
-        case WM_KEYDOWN:
-            if (wParam == 'Q') {
-                SendMessage(m_hWnd, WM_DESTROY, 0, 0);
-                return;
-            }
-            switch (wParam) {
-            case 'A':
-            case 'a':
-                player->moveLeft = true;
-                break;
-            case 'D':
-            case 'd':
-                player->moveRight = true;
-                break;
-            case 'W':
-            case 'w':
-                player->moveUp = true;
-                break;
-            case 'S':
-            case 's':
-                player->moveDown = true;
-                break;
-            case '1':
-                currentGun = &revolver;
-                break;
-            case '2':
-                currentGun = &headshotGun;
-                break;
-            case '3':
-                currentGun = &clusterGun;
-                break;
-            case '4':
-                currentGun = &dualShotgun;
-                break;
-            }
-            break;
-
-        case WM_KEYUP:
-            switch (wParam) {
-            case 'A':
-            case 'a':
-                player->moveLeft = false;
-                break;
-            case 'D':
-            case 'd':
-                player->moveRight = false;
-                break;
-            case 'W':
-            case 'w':
-                player->moveUp = false;
-                break;
-            case 'S':
-            case 's':
-                player->moveDown = false;
-                break;
-            }
-            break;
-        }
-    }
-}
-
 void GameFramework::OnMouseProcessing(UINT iMessage, WPARAM wParam, LPARAM lParam) {
     switch (iMessage) {
-    case WM_MOUSEMOVE: {
-        cursorPos.x = LOWORD(lParam);
-        cursorPos.y = HIWORD(lParam);
+        case WM_MOUSEMOVE: {
+            cursorPos.x = LOWORD(lParam);
+            cursorPos.y = HIWORD(lParam);
 
-        float playerScreenX = player->GetX() - camera->GetOffsetX();
-        if (cursorPos.x < playerScreenX) {
-            player->SetDirectionLeft(true);
+            float playerScreenX = player->GetX() - camera->GetOffsetX();
+            if (cursorPos.x < playerScreenX) {
+                player->SetDirectionLeft(true);
+            }
+            else {
+                player->SetDirectionLeft(false);
+            }
+            break;
         }
-        else {
-            player->SetDirectionLeft(false);
-        }
-        break;
-    }
-    case WM_LBUTTONDOWN: {
-        showClickImage = true;
-        clickImageTimer = 0.2f;
-        cursorPos.x = LOWORD(lParam);
-        cursorPos.y = HIWORD(lParam);
+        case WM_LBUTTONDOWN: {
+            showClickImage = true;
+            clickImageTimer = 0.2f;
+            cursorPos.x = LOWORD(lParam);
+            cursorPos.y = HIWORD(lParam);
 
-        if (isPaused || isShowingUpgradePanel || isMainMenu) {
-            return;
+            if (isPaused || isShowingUpgradePanel || isMainMenu) {
+                return;
+            }
+            else {
+                FireBullet(player->GetX(), player->GetY(), cursorPos.x + camera->GetOffsetX(), cursorPos.y + camera->GetOffsetY());
+            }
+            break;
         }
-        else {
-            FireBullet(player->GetX(), player->GetY(), cursorPos.x + camera->GetOffsetX(), cursorPos.y + camera->GetOffsetY());
-        }
-        break;
-    }
     }
 }
 
