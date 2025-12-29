@@ -16,7 +16,10 @@ GameFramework::GameFramework()
     frameTime(0.0f), gameTimeSeconds(0),
     isPaused(false),
     isShowingUpgradePanel(false), 
-    isMainMenu(true), menuAnimationFrame(0), menuAnimationAccumulator(0.0f), selectedMenuItem(0) {
+    isMainMenu(true), menuAnimationFrame(0), menuAnimationAccumulator(0.0f), 
+    selectedMenuItem(0)
+    bossSpawned(false) 
+{
     Clear();
 
     mapImage.Load(L"./resources/background/background.png");
@@ -27,6 +30,7 @@ GameFramework::GameFramework()
 
     player = new Player(mapWidth / 2.0f, mapHeight / 2.0f, 2.0f, 0.2f, this); // gameFramework 포인터 전달
     // xPos, yPos, speed, animationSpeed, gameframeworkPtr
+
     player->SetBounds(mapWidth, mapHeight);
 
     camera = new Camera(800, 600);
@@ -74,10 +78,8 @@ void InitializeFont() {
 GameFramework::~GameFramework() {
     CleanupDoubleBuffering();
 
-    if (hFont) { // 폰트 Release
-        DeleteObject(hFont);
-        hFont = nullptr;
-    }
+    // 폰트 Release
+    if (hFont) { DeleteObject(hFont); hFont = nullptr; }
 
     delete camera;
     delete player;
@@ -103,6 +105,86 @@ void GameFramework::ResetGame() {
     delete player;
     player = new Player(mapImage.GetWidth() / 2.0f, mapImage.GetHeight() / 2.0f, 2.0f, 0.2f, this);
     player->SetBounds(mapImage.GetWidth(), mapImage.GetHeight());
+}
+
+void GameFramework::SpawnEnemy() {
+    if (enemies.size() >= 100) {
+        return;
+    }
+
+    float playerX = player->GetX();
+    float playerY = player->GetY();
+    float spawnRadius = 600.0f;
+
+    float angle = (rand() % 360) * 3.14159265358979323846 / 180.0;
+    float spawnX = playerX + spawnRadius * cos(angle);
+    float spawnY = playerY + spawnRadius * sin(angle);
+
+    const wchar_t* enemyImages[] = {
+        L"./resources/enemy/T_Lamprey_0.png",
+        L"./resources/enemy/T_Lamprey_1.png",
+        L"./resources/enemy/T_Lamprey_2.png",
+        L"./resources/enemy/T_Lamprey_3.png",
+        L"./resources/enemy/T_Lamprey_4.png"
+    };
+    int numFrames = sizeof(enemyImages) / sizeof(enemyImages[0]);
+
+    float enemyAnimationSpeed = 2.0f;
+    float enemySpeed = 5.0f;
+
+    enemies.push_back(new Enemy(spawnX, spawnY, enemySpeed, 10, enemyImages, numFrames, enemyAnimationSpeed));
+}
+
+void GameFramework::SpawnBossYog() {
+    float playerX = player->GetX();
+    float playerY = player->GetY();
+    float spawnRadius = 600.0f;
+
+    float angle = (rand() % 360) * 3.14159265358979323846 / 180.0;
+    float spawnX = playerX + spawnRadius * cos(angle);
+    float spawnY = playerY + spawnRadius * sin(angle);
+
+    enemies.push_back(new BossYog(spawnX, spawnY, 5.0f));
+}
+
+void GameFramework::SpawnBossYogNearPlayer() {
+    float playerX = player->GetX();
+    float playerY = player->GetY();
+    float spawnRadius = 500.0f; // 주인공 근처에 소환
+
+    float angle = (rand() % 360) * 3.14159265358979323846 / 180.0;
+    float spawnX = playerX + spawnRadius * cos(angle);
+    float spawnY = playerY + spawnRadius * sin(angle);
+
+    enemies.push_back(new BossYog(spawnX, spawnY, 5.0f, 1000, 128.0f, 108.0f));
+}
+
+void GameFramework::CreateEnemies() {
+    for (int i = 0; i < 10; ++i) {
+        SpawnEnemy();
+    }
+}
+
+void GameFramework::Update(float frameTime) {
+    gameTime += frameTime;
+
+    if (!bossSpawned && gameTime >= 180.0f) { // 3분 = 180초
+        SpawnBossYog();
+        bossSpawned = true;
+    }
+
+    player->Update(frameTime, obstacles);
+    camera->Update(player->GetX(), player->GetY());
+
+    for (Enemy* enemy : enemies) {
+        enemy->Update(frameTime, player->GetX(), player->GetY(), obstacles);
+    }
+
+    enemySpawnTimer += frameTime;
+    if (enemySpawnTimer >= enemySpawnInterval) {
+        SpawnEnemy();
+        enemySpawnTimer = 0.0f;
+    }
 
     // 적 제거
     for (Enemy* enemy : enemies) {
@@ -136,7 +218,7 @@ void GameFramework::ResetGame() {
 
     // 적 및 장애물 재생성
     StartCreateEnemies();
-    CreateObstacles(20);
+    //CreateObstacles(20);
 }
 
 void GameFramework::PlayGameSound(LPCWSTR soundFile) {
@@ -697,6 +779,17 @@ void GameFramework::DrawUpgradePanel(HDC hdc) {
     SelectObject(m_hdcBackBuffer, hOldFont);
 }
 
+void GameFramework::CreateObstacles(int numObstacles) {
+    int mapWidth = mapImage.GetWidth();
+    int mapHeight = mapImage.GetHeight();
+
+    for (int i = 0; i < numObstacles; ++i) {
+        float x = static_cast<float>(rand() % mapWidth);
+        float y = static_cast<float>(rand() % mapHeight);
+        obstacles.push_back(new Obstacle(x, y));
+    }
+}
+
 void GameFramework::Draw(HDC hdc) {
     if (!m_hdcBackBuffer) {
         InitializeDoubleBuffering(hdc);
@@ -775,11 +868,58 @@ void GameFramework::Draw(HDC hdc) {
     }
 
     BitBlt(hdc, 0, 0, clientRect.right, clientRect.bottom, m_hdcBackBuffer, 0, 0, SRCCOPY);
+
+    // 게임 시간 표시
+    //std::wstring timeText = L"Time: " + std::to_wstring(static_cast<int>(gameTime));
+    //TextOut(hdc, 700, 10, timeText.c_str(), timeText.length());
 }
 
 // 업그레이드 창 키 입력
 void GameFramework::HandleUpgradeInput() {
     if (!isShowingUpgradePanel) return;
+}
+
+void GameFramework::OnKeyBoardProcessing(UINT iMessage, WPARAM wParam, LPARAM lParam) {
+    switch (iMessage) {
+    case WM_KEYDOWN:
+        if (wParam == 'Q') {
+            SendMessage(m_hWnd, WM_DESTROY, 0, 0);
+            return;
+        }
+        switch (wParam) {
+        case 'A':
+        case 'a':
+            player->moveLeft = true;
+            break;
+        case 'D':
+        case 'd':
+            player->moveRight = true;
+            break;
+        case 'W':
+        case 'w':
+            player->moveUp = true;
+            break;
+        case 'S':
+        case 's':
+            player->moveDown = true;
+            break;
+        case '1':
+            currentGun = &revolver;
+            break;
+        case '2':
+            currentGun = &headshotGun;
+            break;
+        case '3':
+            currentGun = &clusterGun;
+            break;
+        case '4':
+            currentGun = &dualShotgun;
+            break;
+        case VK_F9:
+            SpawnBossYogNearPlayer();
+            break;
+        }
+        break;
 
     if (GetAsyncKeyState(VK_LEFT) & 0x8000) {
         selectedUpgradePanel = 0;
