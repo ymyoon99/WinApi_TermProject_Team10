@@ -147,7 +147,7 @@ void GameFramework::ResetGame() {
     CreateObstacles(20);
 }
 
-void GameFramework::SpawnBossYog() {
+void GameFramework::SpawnBoss() {
     float playerX = player->GetX();
     float playerY = player->GetY();
     float spawnRadius = 600.0f;
@@ -159,7 +159,7 @@ void GameFramework::SpawnBossYog() {
     enemies.push_back(new BossYog(spawnX, spawnY, 5.0f));
 }
 
-void GameFramework::SpawnBossYogNearPlayer() {
+void GameFramework::SpawnBossNearPlayer() {
     float playerX = player->GetX();
     float playerY = player->GetY();
     float spawnRadius = 500.0f; // 주인공 근처에 소환
@@ -885,7 +885,7 @@ void GameFramework::OnKeyBoardProcessing(UINT iMessage, WPARAM wParam, LPARAM lP
         case '3': currentGun = &clusterGun;  break;
         case '4': currentGun = &dualShotgun; break;
 
-        case VK_F9: SpawnBossYogNearPlayer(); break;
+        case VK_F9: SpawnBossNearPlayer(); break;
         }
     }
     else { // WM_KEYUP
