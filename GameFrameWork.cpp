@@ -400,15 +400,10 @@ void GameFramework::Update(float frameTime) {
         return;
     }
 
-    this->frameTime = frameTime;  // 프레임 타임 저장
     if (isMainMenu) return;
 
-    static float timeAccumulator = 0.0f;
-    timeAccumulator += frameTime;
-    if (timeAccumulator >= 1.0f) {
-        gameTimeSeconds += static_cast<int>(timeAccumulator);
-        timeAccumulator = 0.0f;
-    }
+    this->frameTime = frameTime;  // 프레임 타임 저장
+    gameTimeSeconds += frameTime; // 게임 타임 누적
 
     // 플레이어 업데이트
     player->Update(frameTime, obstacles);
@@ -664,8 +659,9 @@ void GameFramework::DrawGameTime(HDC hdc) {
     rect.right = rect.left + 200;
     rect.bottom = rect.top + 40;
 
-    int minutes = gameTimeSeconds / 60;
-    int seconds = gameTimeSeconds % 60;
+    int total = (int)gameTimeSeconds;
+    int minutes = total / 60;
+    int seconds = total % 60;
 
     wchar_t gameTimeText[100];
     swprintf_s(gameTimeText, L"%02d:%02d", minutes, seconds);
