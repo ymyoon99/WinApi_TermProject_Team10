@@ -795,6 +795,7 @@ void GameFramework::Draw(HDC hdc) {
 
     if (isMainMenu) {
         DrawMainMenu(m_hdcBackBuffer);
+
         BitBlt(hdc, 0, 0, clientRect.right, clientRect.bottom, m_hdcBackBuffer, 0, 0, SRCCOPY);
         return;
     }
@@ -805,10 +806,22 @@ void GameFramework::Draw(HDC hdc) {
     //player->DrawBoundingBox(m_hdcBackBuffer, offsetX, offsetY);
 
     for (Enemy* enemy : enemies) {
+        if (!camera->IsRectInView(enemy->GetX(), enemy->GetY(),
+            enemy->GetWidth(), enemy->GetHeight(),
+            clientRect))
+        {
+            continue;
+        }
         enemy->Draw(m_hdcBackBuffer, offsetX, offsetY);
     }
 
     for (Obstacle* obstacle : obstacles) {
+        if (!camera->IsRectInView(obstacle->GetX(), obstacle->GetY(),
+            obstacle->GetWidth(), obstacle->GetHeight(),
+            clientRect))
+        {
+            continue;
+        }
         obstacle->Draw(m_hdcBackBuffer, offsetX, offsetY);
     }
 
@@ -817,6 +830,9 @@ void GameFramework::Draw(HDC hdc) {
     }
 
     for (Item* item : items) {
+        if (!camera->IsPointInView(item->GetX(), item->GetY(), clientRect)) {
+            continue;
+        }
         item->Draw(m_hdcBackBuffer, offsetX, offsetY);
     }
 

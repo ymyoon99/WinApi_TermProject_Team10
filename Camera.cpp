@@ -29,3 +29,38 @@ float Camera::GetOffsetX() const {
 float Camera::GetOffsetY() const {
     return offsetY;
 }
+
+bool Camera::IntersectAABB(float ax, float ay, float aw, float ah,
+    float bx, float by, float bw, float bh)
+{
+    return (ax < bx + bw) && (ax + aw > bx) && (ay < by + bh) && (ay + ah > by);
+}
+
+bool Camera::IsRectInView(float x, float y, float w, float h,
+    const RECT& clientRect, float margin) const
+{
+    const float viewW = static_cast<float>(clientRect.right - clientRect.left);
+    const float viewH = static_cast<float>(clientRect.bottom - clientRect.top);
+
+    // 카메라 월드 좌상단(=offset)
+    const float vx = offsetX - margin;
+    const float vy = offsetY - margin;
+    const float vw = viewW + margin * 2.0f;
+    const float vh = viewH + margin * 2.0f;
+
+    return IntersectAABB(x, y, w, h, vx, vy, vw, vh);
+}
+
+bool Camera::IsPointInView(float x, float y,
+    const RECT& clientRect, float margin) const
+{
+    const float viewW = static_cast<float>(clientRect.right - clientRect.left);
+    const float viewH = static_cast<float>(clientRect.bottom - clientRect.top);
+
+    const float vx = offsetX - margin;
+    const float vy = offsetY - margin;
+    const float vw = viewW + margin * 2.0f;
+    const float vh = viewH + margin * 2.0f;
+
+    return (x >= vx && x <= vx + vw && y >= vy && y <= vy + vh);
+}
