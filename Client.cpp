@@ -67,7 +67,8 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
 
             // 화면 업데이트 및 갱신
             gameframework.Update(static_cast<float>(dtSec));
-            InvalidateRect(g_hWnd, NULL, FALSE);
+            //InvalidateRect(g_hWnd, NULL, FALSE);
+            RedrawWindow(g_hWnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
 
             // 60FPS 캡 설정
             LARGE_INTEGER afterWork{};
