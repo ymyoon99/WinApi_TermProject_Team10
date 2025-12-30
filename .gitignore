@@ -86,3 +86,6 @@ TermProject/x64/Release/TermProject.ipdb
 
 *.iobj
 *.ipdb
+*.iobj
+TermProject/x64/Release/TermProject.iobj
+/TermProject/x64/Release

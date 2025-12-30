@@ -2,6 +2,11 @@
 #include "Client.h"
 #include "GameFramework.h"
 
+#include <iostream>
+#include <iomanip>
+#include <fstream>
+#include <cfloat> 
+
 #include <mmsystem.h>
 #pragma comment(lib, "winmm.lib")
 
@@ -44,6 +49,14 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
     QueryPerformanceFrequency(&freq);
     QueryPerformanceCounter(&lastFrameStart);
 
+    // ===== FPS 통계 출력용 변수 =====
+    double statTotalTimeSec = 0.0;
+    unsigned long long statFrameCount = 0;
+
+    double statMinFps = DBL_MAX;      // 최저 FPS
+    double statMaxFrameMs = 0.0;      // 가장 느린 프레임(ms) (참고용)
+    // ===========================================
+
     while (true)
     {
         if (::PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
@@ -59,10 +72,24 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
             QueryPerformanceCounter(&frameStart);
 
             // 실제 Delta Time 계산
-            double dtSec = double(frameStart.QuadPart - lastFrameStart.QuadPart) / double(freq.QuadPart);
+            double rawDtSec = double(frameStart.QuadPart - lastFrameStart.QuadPart) / double(freq.QuadPart);
             lastFrameStart = frameStart;
 
+            // ===== 통계는 RAW dt로 누적 =====
+            if (rawDtSec > 0.0)
+            {
+                statTotalTimeSec += rawDtSec;
+                statFrameCount++;
+
+                const double fpsNow = 1.0 / rawDtSec;
+                if (fpsNow < statMinFps) statMinFps = fpsNow;
+
+                const double frameMs = rawDtSec * 1000.0;
+                if (frameMs > statMaxFrameMs) statMaxFrameMs = frameMs;
+            }
+
             // dt 폭주 방지
+            double dtSec = rawDtSec;
             if (dtSec > 0.1) dtSec = 0.1;
 
             // 화면 업데이트 및 갱신
@@ -86,6 +113,28 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
     }
 
     timeEndPeriod(1);
+
+    // ===== Save FPS statistics to txt =====
+    {
+        double avgFps = 0.0;
+        if (statTotalTimeSec > 0.0 && statFrameCount > 0) {
+            avgFps = double(statFrameCount) / statTotalTimeSec;
+        }
+
+        std::ofstream out("fps_stats.txt", std::ios::out);
+        if (out.is_open()) {
+            out << std::fixed << std::setprecision(2);
+            out << "총 프레임 수: " << statFrameCount << "\n";
+            out << "총 시간 (sec): " << statTotalTimeSec << "\n";
+            out << "평균 FPS: " << avgFps << "\n";
+
+            if (statMinFps == DBL_MAX) statMinFps = 0.0;
+            out << "최소 FPS: " << statMinFps << "\n";
+
+            out.close();
+        }
+    }
+    // ======================================
 
     gameframework.Clear();
 
