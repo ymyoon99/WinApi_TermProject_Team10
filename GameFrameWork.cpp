@@ -244,6 +244,14 @@ void GameFramework::ToggleMainMenu() {
 
 void GameFramework::TogglePause() {
     isPaused = !isPaused;
+
+    if (isPaused) {
+        // 이동 상태 해제
+        player->moveLeft = false;
+        player->moveRight = false;
+        player->moveUp = false;
+        player->moveDown = false;
+    }
 }
 
 void GameFramework::LevelUpUpgrade() {
@@ -259,6 +267,12 @@ void GameFramework::ShowUpgradePanel() {
     }
 
     isShowingUpgradePanel = true;
+
+    // 이동 상태 해제
+    player->moveLeft = false;
+    player->moveRight = false;
+    player->moveUp = false;
+    player->moveDown = false;
 
     // 랜덤으로 업그레이드 항목 선택
     std::vector<UpgradeOptions> allUpgrades = { MaxHp, MaxAmmo, AddSpeed, UpgradeGun };

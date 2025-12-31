@@ -42,8 +42,7 @@ void Gun::UpdateReload(float frameTime) {
 void Gun::Draw(HDC hdc, float playerX, float playerY, float cursorX, float cursorY, bool directionLeft) {
     float dx = cursorX - playerX;
     float dy = cursorY - playerY;
-    float angle = atan2(dy, dx) * 180.0 / 3.14159265358979323846; 
-    // Angle in degrees
+    float angle = atan2(dy, dx) * 180.0 / 3.14159265358979323846; // Angle in degrees
 
     // 현재 총 이미지 설정
     CImage* currentGunImage = nullptr;
