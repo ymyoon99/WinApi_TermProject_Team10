@@ -11,11 +11,24 @@ Enemy::Enemy(float x, float y, float speed, int health, float animationSpeed, fl
     LoadImages();
 
     // Load death effect images
-    deathEffectImages.resize(4);
-    deathEffectImages[0].Load(L"./resources/effect/DeathFX_0.png");
-    deathEffectImages[1].Load(L"./resources/effect/DeathFX_1.png");
-    deathEffectImages[2].Load(L"./resources/effect/DeathFX_2.png");
-    deathEffectImages[3].Load(L"./resources/effect/DeathFX_3.png");
+    static bool s_deathLoaded = false;
+    static std::vector<CImage> s_death;
+
+    if (!s_deathLoaded) {
+        s_death.resize(4);
+        s_death[0].Load(L"./resources/effect/DeathFX_0.png");
+        s_death[1].Load(L"./resources/effect/DeathFX_1.png");
+        s_death[2].Load(L"./resources/effect/DeathFX_2.png");
+        s_death[3].Load(L"./resources/effect/DeathFX_3.png");
+        s_deathLoaded = true;
+    }
+
+    deathEffectImages.clear();
+    deathEffectImages.reserve(s_death.size());
+    for (auto& img : s_death) {
+        deathEffectImages.push_back(&img);
+    }
+
 }
 
 Enemy::~Enemy() {
@@ -90,15 +103,22 @@ void Enemy::Draw(HDC hdc, float offsetX, float offsetY) {
         return;
     }
 
-    if (!idleImages[currentFrame].IsNull()) {
-        idleImages[currentFrame].Draw(hdc, static_cast<int>(x - offsetX), static_cast<int>(y - offsetY));
+    if (idleImages.empty()) return;
+
+    const CImage* img = idleImages[currentFrame];
+    if (img && !img->IsNull()) {
+        img->Draw(hdc, static_cast<int>(x - offsetX), static_cast<int>(y - offsetY));
     }
 }
 
 void Enemy::DrawDeathEffect(HDC hdc, float offsetX, float offsetY) {
     int frame = static_cast<int>((deathEffectStart / deathEffectDuration) * deathEffectImages.size());
-    if (frame >= 0 && frame < deathEffectImages.size()) {
-        deathEffectImages[frame].Draw(hdc, static_cast<int>(x - offsetX), static_cast<int>(y - offsetY));
+
+    if(frame >= 0 && frame < (int)deathEffectImages.size()) {
+        const CImage* img = deathEffectImages[frame];
+        if (img && !img->IsNull()) {
+            img->Draw(hdc, static_cast<int>(x - offsetX), static_cast<int>(y - offsetY));
+        }
     }
 }
 
@@ -139,11 +159,21 @@ BrainMonster::BrainMonster(float x, float y, float speed, int health, float eWid
 }
 
 void BrainMonster::LoadImages() {
-    idleImages.resize(4);
-    idleImages[0].Load(L"./resources/enemy/BrainMonster_0.png");
-    idleImages[1].Load(L"./resources/enemy/BrainMonster_1.png");
-    idleImages[2].Load(L"./resources/enemy/BrainMonster_2.png");
-    idleImages[3].Load(L"./resources/enemy/BrainMonster_3.png");
+    static bool s_loaded = false;
+    static std::vector<CImage> s_imgs;
+
+    if (!s_loaded) {
+        s_imgs.resize(4);
+        s_imgs[0].Load(L"./resources/enemy/BrainMonster_0.png");
+        s_imgs[1].Load(L"./resources/enemy/BrainMonster_1.png");
+        s_imgs[2].Load(L"./resources/enemy/BrainMonster_2.png");
+        s_imgs[3].Load(L"./resources/enemy/BrainMonster_3.png");
+        s_loaded = true;
+    }
+
+    idleImages.clear();
+    idleImages.reserve(s_imgs.size());
+    for (auto& img : s_imgs) idleImages.push_back(&img);
 }
 
 // EyeMonster
@@ -154,10 +184,20 @@ EyeMonster::EyeMonster(float x, float y, float speed, int health, float eWidth, 
 }
 
 void EyeMonster::LoadImages() {
-    idleImages.resize(3);
-    idleImages[0].Load(L"./resources/enemy/EyeMonster_0.png");
-    idleImages[1].Load(L"./resources/enemy/EyeMonster_1.png");
-    idleImages[2].Load(L"./resources/enemy/EyeMonster_2.png");
+    static bool s_loaded = false;
+    static std::vector<CImage> s_imgs;
+
+    if (!s_loaded) {
+        s_imgs.resize(3);
+        s_imgs[0].Load(L"./resources/enemy/EyeMonster_0.png");
+        s_imgs[1].Load(L"./resources/enemy/EyeMonster_1.png");
+        s_imgs[2].Load(L"./resources/enemy/EyeMonster_2.png");
+        s_loaded = true;
+    }
+
+    idleImages.clear();
+    idleImages.reserve(s_imgs.size());
+    for (auto& img : s_imgs) idleImages.push_back(&img);
 }
 
 // BigBoomer
@@ -168,11 +208,21 @@ BigBoomer::BigBoomer(float x, float y, float speed, int health, float eWidth, fl
 }
 
 void BigBoomer::LoadImages() {
-    idleImages.resize(4);
-    idleImages[0].Load(L"./resources/enemy/BigBoomer_0.png");
-    idleImages[1].Load(L"./resources/enemy/BigBoomer_1.png");
-    idleImages[2].Load(L"./resources/enemy/BigBoomer_2.png");
-    idleImages[3].Load(L"./resources/enemy/BigBoomer_3.png");
+    static bool s_loaded = false;
+    static std::vector<CImage> s_imgs;
+
+    if (!s_loaded) {
+        s_imgs.resize(4);
+        s_imgs[0].Load(L"./resources/enemy/BigBoomer_0.png");
+        s_imgs[1].Load(L"./resources/enemy/BigBoomer_1.png");
+        s_imgs[2].Load(L"./resources/enemy/BigBoomer_2.png");
+        s_imgs[3].Load(L"./resources/enemy/BigBoomer_3.png");
+        s_loaded = true;
+    }
+
+    idleImages.clear();
+    idleImages.reserve(s_imgs.size());
+    for (auto& img : s_imgs) idleImages.push_back(&img);
 }
 
 // Lamprey
@@ -183,12 +233,22 @@ Lamprey::Lamprey(float x, float y, float speed, int health, float eWidth, float 
 }
 
 void Lamprey::LoadImages() {
-    idleImages.resize(5);
-    idleImages[0].Load(L"./resources/enemy/T_Lamprey_0.png");
-    idleImages[1].Load(L"./resources/enemy/T_Lamprey_1.png");
-    idleImages[2].Load(L"./resources/enemy/T_Lamprey_2.png");
-    idleImages[3].Load(L"./resources/enemy/T_Lamprey_3.png");
-    idleImages[4].Load(L"./resources/enemy/T_Lamprey_4.png");
+    static bool s_loaded = false;
+    static std::vector<CImage> s_imgs;
+
+    if (!s_loaded) {
+        s_imgs.resize(5);
+        s_imgs[0].Load(L"./resources/enemy/T_Lamprey_0.png");
+        s_imgs[1].Load(L"./resources/enemy/T_Lamprey_1.png");
+        s_imgs[2].Load(L"./resources/enemy/T_Lamprey_2.png");
+        s_imgs[3].Load(L"./resources/enemy/T_Lamprey_3.png");
+        s_imgs[4].Load(L"./resources/enemy/T_Lamprey_4.png");
+        s_loaded = true;
+    }
+
+    idleImages.clear();
+    idleImages.reserve(s_imgs.size());
+    for (auto& img : s_imgs) idleImages.push_back(&img);
 }
 
 // Yog
@@ -199,12 +259,21 @@ Yog::Yog(float x, float y, float speed, int health, float eWidth, float eHeight)
 }
 
 void Yog::LoadImages() {
-    idleImages.resize(4);
-    idleImages[0].Load(L"./resources/enemy/T_Yog_0.png");
-    idleImages[1].Load(L"./resources/enemy/T_Yog_1.png");
-    idleImages[2].Load(L"./resources/enemy/T_Yog_2.png");
-    idleImages[3].Load(L"./resources/enemy/T_Yog_3.png");
+    static bool s_loaded = false;
+    static std::vector<CImage> s_imgs;
 
+    if (!s_loaded) {
+        s_imgs.resize(4);
+        s_imgs[0].Load(L"./resources/enemy/T_Yog_0.png");
+        s_imgs[1].Load(L"./resources/enemy/T_Yog_1.png");
+        s_imgs[2].Load(L"./resources/enemy/T_Yog_2.png");
+        s_imgs[3].Load(L"./resources/enemy/T_Yog_3.png");
+        s_loaded = true;
+    }
+
+    idleImages.clear();
+    idleImages.reserve(s_imgs.size());
+    for (auto& img : s_imgs) idleImages.push_back(&img);
 }
 
 // Boss
@@ -226,12 +295,22 @@ BossYog::BossYog(float x, float y, float speed, int health, float eWidth, float 
 }
 
 void BossYog::LoadImages() {
-    idleImages.resize(5);
-    idleImages[0].Load(L"./resources/enemy/WingedMonster_0.png");
-    idleImages[1].Load(L"./resources/enemy/WingedMonster_1.png");
-    idleImages[2].Load(L"./resources/enemy/WingedMonster_2.png");
-    idleImages[3].Load(L"./resources/enemy/WingedMonster_3.png");
-    idleImages[4].Load(L"./resources/enemy/WingedMonster_4.png");
+    static bool s_loaded = false;
+    static std::vector<CImage> s_idle;
+
+    if (!s_loaded) {
+        s_idle.resize(5);
+        s_idle[0].Load(L"./resources/enemy/WingedMonster_0.png");
+        s_idle[1].Load(L"./resources/enemy/WingedMonster_1.png");
+        s_idle[2].Load(L"./resources/enemy/WingedMonster_2.png");
+        s_idle[3].Load(L"./resources/enemy/WingedMonster_3.png");
+        s_idle[4].Load(L"./resources/enemy/WingedMonster_4.png");
+        s_loaded = true;
+    }
+
+    idleImages.clear();
+    idleImages.reserve(s_idle.size());
+    for (auto& img : s_idle) idleImages.push_back(&img);
 
     // 준비 동작 이미지를 로드
     prepareImages.resize(6);
@@ -243,8 +322,10 @@ void BossYog::LoadImages() {
     prepareImages[5].Load(L"./resources/effect/T_FireExplosionSmall_5.png");
 
     // 히트박스를 이미지 크기에 맞춰 조정
-    eWidth = static_cast<float>(idleImages[0].GetWidth());
-    eHeight = static_cast<float>(idleImages[0].GetHeight());
+    if (!s_idle.empty() && !s_idle[0].IsNull()) {
+        eWidth = static_cast<float>(s_idle[0].GetWidth());
+        eHeight = static_cast<float>(s_idle[0].GetHeight());
+    }
 }
 
 void BossYog::Update(float frameTime, float playerX, float playerY, const std::vector<Obstacle*>& obstacles) {
@@ -326,8 +407,8 @@ void BossYog::Draw(HDC hdc, float offsetX, float offsetY) {
     if (isPreparing && !prepareImages[prepareFrame].IsNull()) {
         prepareImages[prepareFrame].Draw(hdc, static_cast<int>(x - offsetX), static_cast<int>(y - offsetY));
     }
-    else if (!idleImages[currentFrame].IsNull()) {
-        idleImages[currentFrame].Draw(hdc, static_cast<int>(x - offsetX), static_cast<int>(y - offsetY));
+    else if (!idleImages.empty() && idleImages[currentFrame] && !idleImages[currentFrame]->IsNull()) {
+        idleImages[currentFrame]->Draw(hdc, (int)(x - offsetX), (int)(y - offsetY));
     }
 }
 

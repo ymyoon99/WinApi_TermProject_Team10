@@ -40,14 +40,14 @@ protected:
     float frameTimeAccumulator;
     float animationSpeed;
 
-    std::vector<CImage> idleImages;
+    std::vector<const CImage*> idleImages;
 
     bool CheckCollision(float newX, float newY, const std::vector<Obstacle*>& obstacles) const;
 
     bool isDying;
     float deathEffectDuration;
     float deathEffectStart;
-    std::vector<CImage> deathEffectImages;
+    std::vector<const CImage*> deathEffectImages;
 };
 
 // BrainMonster
