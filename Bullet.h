@@ -24,11 +24,11 @@ private:
     float speed;
     float directionX, directionY;
     int damage;
-    CImage bulletImage;
+    const CImage* bulletImage;
 
     float hitEffectDuration;
     float hitEffectTime;
-    std::vector<CImage> hitEffectImages;
+    std::vector<const CImage*> hitEffectImages;
 };
 
 class RevolverBullet : public Bullet {

@@ -1,6 +1,34 @@
 #include "Bullet.h"
 #include <cmath>
 
+namespace {
+    const CImage* GetSharedBulletImage()
+    {
+        static CImage s_img;
+        static bool s_loaded = false;
+
+        if (!s_loaded) {
+            s_img.Load(L"./resources/gun/SmallCircle.png");
+            s_loaded = true;
+        }
+        return &s_img;
+    }
+
+    const std::vector<CImage>& GetSharedHitEffectImages()
+    {
+        static std::vector<CImage> s_imgs;
+        static bool s_loaded = false;
+
+        if (!s_loaded) {
+            s_imgs.resize(2);
+            s_imgs[0].Load(L"./resources/effect/HitImpactFX_0.png");
+            s_imgs[1].Load(L"./resources/effect/HitImpactFX_1.png");
+            s_loaded = true;
+        }
+        return s_imgs;
+    }
+}
+
 Bullet::Bullet(float x, float y, float targetX, float targetY, int damage, float speed)
     : x(x), y(y), speed(speed), damage(damage), isHit(false), hitEffectDuration(0.25f), hitEffectTime(0.0f) {
     float dx = targetX - x;
@@ -8,18 +36,20 @@ Bullet::Bullet(float x, float y, float targetX, float targetY, int damage, float
     float distance = sqrt(dx * dx + dy * dy);
     directionX = dx / distance;
     directionY = dy / distance;
-    bulletImage.Load(L"./resources/gun/SmallCircle.png");
 
-    // Load hit effect images
-    hitEffectImages.resize(2);
-    hitEffectImages[0].Load(L"./resources/effect/HitImpactFX_0.png");
-    hitEffectImages[1].Load(L"./resources/effect/HitImpactFX_1.png");
+    // 리소스 연결
+    bulletImage = GetSharedBulletImage();
+
+    const auto& sharedHit = GetSharedHitEffectImages();
+    hitEffectImages.clear();
+    hitEffectImages.reserve(sharedHit.size());
+    for (const auto& img : sharedHit) {
+        hitEffectImages.push_back(&img);
+    }
 }
 
 Bullet::~Bullet() {
-    for (auto& image : hitEffectImages) {
-        image.Destroy();
-    }
+
 }
 
 void Bullet::Update(float frameTime) {
@@ -41,17 +71,23 @@ void Bullet::Draw(HDC hdc, float offsetX, float offsetY) {
         DrawHitEffect(hdc, offsetX, offsetY);
     }
     else {
-        bulletImage.Draw(hdc, static_cast<int>(x - offsetX), static_cast<int>(y - offsetY));
+        if (bulletImage && !bulletImage->IsNull()) {
+            bulletImage->Draw(hdc, static_cast<int>(x - offsetX), static_cast<int>(y - offsetY));
+        }
     }
 }
 
 void Bullet::DrawHitEffect(HDC hdc, float offsetX, float offsetY) {
+    if (hitEffectImages.empty()) return;
+
     int frame = static_cast<int>((hitEffectTime / hitEffectDuration) * hitEffectImages.size());
-    if (frame >= hitEffectImages.size()) {
-        frame = hitEffectImages.size() - 1; // 마지막 프레임을 유지
+    if (frame >= (int)hitEffectImages.size()) {
+        frame = (int)hitEffectImages.size() - 1;
     }
-    if (frame >= 0 && frame < hitEffectImages.size()) {
-        hitEffectImages[frame].Draw(hdc, static_cast<int>(x - offsetX), static_cast<int>(y - offsetY));
+
+    const CImage* img = hitEffectImages[frame];
+    if (img && !img->IsNull()) {
+        img->Draw(hdc, static_cast<int>(x - offsetX), static_cast<int>(y - offsetY));
     }
 }
 
