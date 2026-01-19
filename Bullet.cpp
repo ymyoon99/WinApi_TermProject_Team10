@@ -29,14 +29,9 @@ namespace {
     }
 }
 
-Bullet::Bullet(float x, float y, float targetX, float targetY, int damage, float speed)
-    : x(x), y(y), speed(speed), damage(damage), isHit(false), hitEffectDuration(0.25f), hitEffectTime(0.0f) {
-    float dx = targetX - x;
-    float dy = targetY - y;
-    float distance = sqrt(dx * dx + dy * dy);
-    directionX = dx / distance;
-    directionY = dy / distance;
-
+Bullet::Bullet(BulletKind kind, int damage, float speed)
+    : speed(speed), damage(damage), kind(kind)
+{
     // 리소스 연결
     bulletImage = GetSharedBulletImage();
 
@@ -46,13 +41,45 @@ Bullet::Bullet(float x, float y, float targetX, float targetY, int damage, float
     for (const auto& img : sharedHit) {
         hitEffectImages.push_back(&img);
     }
+
+    // 안전 기본값
+    x = y = 0.0f;
+    directionX = 1.0f;
+    directionY = 0.0f;
+    isHit = false;
+    hitEffectTime = 0.0f;
 }
 
 Bullet::~Bullet() {
 
 }
 
-void Bullet::Update(float frameTime) {
+void Bullet::Reset(float startX, float startY, float targetX, float targetY)
+{
+    x = startX;
+    y = startY;
+
+    isHit = false;
+    hitEffectTime = 0.0f;
+
+    float dx = targetX - startX;
+    float dy = targetY - startY;
+    float distSq = dx * dx + dy * dy;
+
+    // 0으로 나누기 방지
+    if (distSq < 0.000001f) {
+        directionX = 1.0f;
+        directionY = 0.0f;
+        return;
+    }
+
+    float dist = std::sqrt(distSq);
+    directionX = dx / dist;
+    directionY = dy / dist;
+}
+
+void Bullet::Update(float frameTime)
+{
     if (isHit) {
         UpdateHitEffect(frameTime);
     }
@@ -62,11 +89,13 @@ void Bullet::Update(float frameTime) {
     }
 }
 
-void Bullet::UpdateHitEffect(float frameTime) {
+void Bullet::UpdateHitEffect(float frameTime) 
+{
     hitEffectTime += frameTime;
 }
 
-void Bullet::Draw(HDC hdc, float offsetX, float offsetY) {
+void Bullet::Draw(HDC hdc, float offsetX, float offsetY) 
+{
     if (isHit) {
         DrawHitEffect(hdc, offsetX, offsetY);
     }
@@ -77,7 +106,8 @@ void Bullet::Draw(HDC hdc, float offsetX, float offsetY) {
     }
 }
 
-void Bullet::DrawHitEffect(HDC hdc, float offsetX, float offsetY) {
+void Bullet::DrawHitEffect(HDC hdc, float offsetX, float offsetY) 
+{
     if (hitEffectImages.empty()) return;
 
     int frame = static_cast<int>((hitEffectTime / hitEffectDuration) * hitEffectImages.size());
@@ -91,56 +121,60 @@ void Bullet::DrawHitEffect(HDC hdc, float offsetX, float offsetY) {
     }
 }
 
-bool Bullet::IsOutOfBounds(float width, float height) const {
+bool Bullet::IsOutOfBounds(float width, float height) const 
+{
     return x < 0 || y < 0 || x > width || y > height;
 }
 
-bool Bullet::CheckCollision(float enemyX, float enemyY, float enemyWidth, float enemyHeight) const {
+bool Bullet::CheckCollision(float enemyX, float enemyY, float enemyWidth, float enemyHeight) const 
+{
     return x > enemyX && x < enemyX + enemyWidth &&
         y > enemyY && y < enemyY + enemyHeight;
 }
 
-int Bullet::GetDamage() const {
+int Bullet::GetDamage() const 
+{
     return damage;
 }
 
-bool Bullet::isEffectFinished() const {
+bool Bullet::isEffectFinished() const 
+{
     return hitEffectTime >= hitEffectDuration;
 }
 
-// RevolverBullet
-RevolverBullet::RevolverBullet(float x, float y, float targetX, float targetY)
-    : Bullet(x, y, targetX, targetY, 50, 1500.0f) {}
+// 파생 총알 클래스
+RevolverBullet::RevolverBullet()
+    : Bullet(BulletKind::Revolver, 50, 1500.0f)
+{
+}
 
-// HeadshotGunBullet
-HeadshotGunBullet::HeadshotGunBullet(float x, float y, float targetX, float targetY)
-    : Bullet(x, y, targetX, targetY, 100, 1500.0f) {}
+HeadshotGunBullet::HeadshotGunBullet()
+    : Bullet(BulletKind::Headshot, 100, 1500.0f)
+{
+}
 
-// ClusterGunBullet
-ClusterGunBullet::ClusterGunBullet(float x, float y, float targetX, float targetY)
-    : Bullet(x, y, targetX, targetY, 75, 1500.0f) {}
+ClusterGunBullet::ClusterGunBullet()
+    : Bullet(BulletKind::Cluster, 75, 1500.0f)
+{
+}
 
-// DualShotgunBullet
-DualShotgunBullet::DualShotgunBullet(float x, float y, float targetX, float targetY, float spreadAngle)
-    : Bullet(x, y, targetX, targetY, 100, 1500.0f) {
-    // targetX와 targetY에 대한 방향 벡터를 계산
-    float dx = targetX - x;
-    float dy = targetY - y;
-    float distance = sqrt(dx * dx + dy * dy);
+DualShotgunBullet::DualShotgunBullet()
+    : Bullet(BulletKind::DualShotgun, 100, 1500.0f)
+{
+}
 
-    // 기본 방향 단위 벡터 계산
-    float directionX = dx / distance;
-    float directionY = dy / distance;
+void DualShotgunBullet::ResetWithSpread(float startX, float startY, float targetX, float targetY, float spreadRad)
+{
+    // 기본 방향 먼저 계산
+    Reset(startX, startY, targetX, targetY);
 
-    // spreadAngle을 적용하여 방향을 조정
-    float newDirectionX = directionX * cos(spreadAngle) - directionY * sin(spreadAngle);
-    float newDirectionY = directionX * sin(spreadAngle) + directionY * cos(spreadAngle);
+    // 그 방향을 spreadRad 만큼 회전
+    float ox = directionX;
+    float oy = directionY;
 
-    // 새로운 방향에 따른 targetX, targetY 계산
-    float newTargetX = x + newDirectionX * 100;
-    float newTargetY = y + newDirectionY * 100;
+    float cs = std::cos(spreadRad);
+    float sn = std::sin(spreadRad);
 
-    // Bullet의 방향 업데이트
-    this->directionX = newDirectionX;
-    this->directionY = newDirectionY;
+    directionX = ox * cs - oy * sn;
+    directionY = ox * sn + oy * cs;
 }

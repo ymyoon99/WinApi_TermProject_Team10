@@ -49,6 +49,8 @@ GameFramework::GameFramework()
     menuImages[0].Load(L"./resources/background/Title_0.png");
     menuImages[1].Load(L"./resources/background/Title_1.png");
     menuImages[2].Load(L"./resources/background/Title_2.png");
+
+    bulletPool.Prewarm(256, 256, 512, 1024);
 }
 
 HFONT hFont = nullptr;
@@ -75,7 +77,8 @@ void InitializeFont() {
     );
 }
 
-GameFramework::~GameFramework() {
+GameFramework::~GameFramework() 
+{
     CleanupDoubleBuffering();
 
     // 폰트 Release
@@ -106,9 +109,17 @@ GameFramework::~GameFramework() {
         delete item;
     }
     items.clear();
+
+    // 활성 총알 먼저 풀로 반납
+    for (Bullet* b : bullets) bulletPool.Release(b);
+    bullets.clear();
+
+    // 풀에 쌓인 메모리 해제
+    bulletPool.ClearAll();
 }
 
-void GameFramework::ResetGame() {
+void GameFramework::ResetGame() 
+{
     // 상태 플래그 초기화
     isPaused = false;
     isShowingUpgradePanel = false;
@@ -126,7 +137,7 @@ void GameFramework::ResetGame() {
     yogSpawnTimer = 0.0f;
 
     // 총알 제거
-    for (Bullet* b : bullets) delete b;
+    for (Bullet* b : bullets) bulletPool.Release(b);
     bullets.clear();
 
     // 아이템 제거
@@ -467,37 +478,39 @@ void GameFramework::Update(float frameTime) {
         }
     }
 
-    // 총알 업데이트
-    auto bulletIter = bullets.begin();
-    while (bulletIter != bullets.end()) {
-        Bullet* bullet = *bulletIter;
+    // 총알 업데이트 (swap-pop & pool release)
+    for (size_t i = 0; i < bullets.size(); )
+    {
+        Bullet* bullet = bullets[i];
         bullet->Update(frameTime);
 
         bool bulletRemoved = false;
-        if (bullet->IsOutOfBounds(mapImage.GetWidth(), mapImage.GetHeight())) {
+
+        if (bullet->IsOutOfBounds((float)mapImage.GetWidth(), (float)mapImage.GetHeight())) {
             bulletRemoved = true;
         }
         else if (bullet->isHit) {
-            if (bullet->isEffectFinished()) {
-                bulletRemoved = true;
-            }
+            if (bullet->isEffectFinished()) bulletRemoved = true;
         }
         else {
             for (Enemy* enemy : enemies) {
                 if (bullet->CheckCollision(enemy->GetX(), enemy->GetY(), enemy->GetWidth(), enemy->GetHeight())) {
                     enemy->TakeDamage(bullet->GetDamage());
-                    bullet->isHit = true; // Set bullet hit
+                    bullet->isHit = true;
                     break;
                 }
             }
         }
 
         if (bulletRemoved) {
-            delete bullet;
-            bulletIter = bullets.erase(bulletIter);
+            bulletPool.Release(bullet);
+
+            // 순서 유지 필요 없으니 swap-pop으로 처리 O(1)
+            bullets[i] = bullets.back();
+            bullets.pop_back();
         }
         else {
-            ++bulletIter;
+            ++i;
         }
     }
 
@@ -628,32 +641,42 @@ void GameFramework::CreateObstacles(int numObstacles) {
     }
 }
 
-void GameFramework::FireBullet(float x, float y, float targetX, float targetY) {
-    if (currentGun->FireBullet()) {
+void GameFramework::FireBullet(float x, float y, float targetX, float targetY)
+{
+    if (!currentGun->FireBullet()) return;
 
-        PlayGameSound(L"./resources/sounds/single_shot.wav");
+    PlayGameSound(L"./resources/sounds/single_shot.wav");
 
-        if (dynamic_cast<Revolver*>(currentGun)) {
-            bullets.push_back(new RevolverBullet(x, y, targetX, targetY));
-        }
-        else if (dynamic_cast<HeadshotGun*>(currentGun)) {
-            bullets.push_back(new HeadshotGunBullet(x, y, targetX, targetY));
-        }
-        else if (dynamic_cast<ClusterGun*>(currentGun)) {
-            bullets.push_back(new ClusterGunBullet(x, y, targetX, targetY));
-            bullets.push_back(new ClusterGunBullet(x, y, targetX, targetY + 10));
-        }
-        else if (dynamic_cast<DualShotgun*>(currentGun)) {
-            int numBullets = 5; // 발사할 총알의 개수
-            float spreadAngle = 10.0f * (3.14159265358979323846 / 180.0f); // 스프레드 각도(라디안 단위로 변환)
-            float baseAngle = atan2(targetY - y, targetX - x);
+    if (dynamic_cast<Revolver*>(currentGun)) {
+        RevolverBullet* b = bulletPool.AcquireRevolver();
+        b->Reset(x, y, targetX, targetY);
+        bullets.push_back(b);
+    }
+    else if (dynamic_cast<HeadshotGun*>(currentGun)) {
+        HeadshotGunBullet* b = bulletPool.AcquireHeadshot();
+        b->Reset(x, y, targetX, targetY);
+        bullets.push_back(b);
+    }
+    else if (dynamic_cast<ClusterGun*>(currentGun)) {
+        // 기존처럼 2발
+        ClusterGunBullet* b1 = bulletPool.AcquireCluster();
+        b1->Reset(x, y, targetX, targetY);
+        bullets.push_back(b1);
 
-            for (int i = 0; i < numBullets; ++i) {
-                float angle = baseAngle + spreadAngle * (i - numBullets / 2);
-                float newTargetX = x + cos(angle) * 100;
-                float newTargetY = y + sin(angle) * 100;
-                bullets.push_back(new DualShotgunBullet(x, y, newTargetX, newTargetY, 0));
-            }
+        ClusterGunBullet* b2 = bulletPool.AcquireCluster();
+        b2->Reset(x, y, targetX, targetY + 10.0f);
+        bullets.push_back(b2);
+    }
+    else if (dynamic_cast<DualShotgun*>(currentGun)) {
+        const int numBullets = 5;
+        const float spreadStep = 10.0f * (3.14159265358979323846f / 180.0f); // 발사각 계산
+
+        for (int i = 0; i < numBullets; ++i) {
+            float spread = spreadStep * (i - numBullets / 2);
+
+            DualShotgunBullet* b = bulletPool.AcquireDual();
+            b->ResetWithSpread(x, y, targetX, targetY, spread);
+            bullets.push_back(b);
         }
     }
 }
